@@ -83,5 +83,5 @@ with col_btn2:
         st.rerun()
 
 st.markdown("---")
-st.markdown("<center>Made by Nabiha , Kanza , Rabia | TwinGuard-AI Project 2025</center>", unsafe_allow_html=True)
+st.markdown("<center>Made by Nabiha , Kanza , Rabia | TwinGuard-AI Project 2026</center>", unsafe_allow_html=True)
 
