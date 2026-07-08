@@ -24,7 +24,7 @@ st.markdown("""
     .alert-box { padding: 12px; border-radius: 10px; margin-bottom: 8px; border-left: 5px solid; }
     .alert-high { background: #FEE2E2; border-color: #EF4444; }
     .alert-med { background: #FEF3C7; border-color: #F59E0B; }
-    .scan-btn button { background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); color: white; font-family: 'Poppins'; font-weight: 600; border-radius: 12px; width: 100%; font-size: 1.1rem; height: 3em; }
+    .scan-btn button { background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); color: white; font-family: 'Poppins'; font-weight: 600; border-radius: 12px; width: 100%; font-size: 1.1rem; }
     .footer { text-align: center; color: #64748B; padding-top: 30px; }
 </style>
 """, unsafe_allow_html=True)
@@ -33,14 +33,12 @@ st.markdown("""
 if 'alerts' not in st.session_state: st.session_state.alerts = []
 if 'blocked_list' not in st.session_state: st.session_state.blocked_list = []
 if 'scan_done' not in st.session_state: st.session_state.scan_done = False
-if 'networks' not in st.session_state: st.session_state.networks = 0
-if 'threats' not in st.session_state: st.session_state.threats = 0
 
 # Load Trusted Baseline
-if os.path.exists("data/trusted_networks.json"):
-    with open("data/trusted_networks.json", "r") as f: baseline = json.load(f)
+if os.path.exists("baseline.json"):
+    with open("baseline.json", "r") as f: baseline = json.load(f)
 else:
-    baseline = {"PTCL_5G": "AA:11:22:33:44:01"}
+    baseline = {"trusted_ssid": "Lab_WiFi", "trusted_bssid": "AA:BB:CC:11:22:33"}
 
 # Header and Scan Button
 col1, col2 = st.columns([3,1])
@@ -59,8 +57,6 @@ if st.button("🔍 Start Network Scan", use_container_width=True):
         
         networks = random.randint(18, 30)
         threats = random.randint(0, 2)
-        st.session_state.networks = networks
-        st.session_state.threats = threats
         
         if threats > 0:
             new_alert = {
@@ -74,12 +70,15 @@ if st.button("🔍 Start Network Scan", use_container_width=True):
             
             if new_alert['type'] not in [b['type'] for b in st.session_state.blocked_list]:
                  st.session_state.blocked_list.append({"type": new_alert['type'], "time": new_alert['time']})
+        
+        st.session_state.networks = networks
+        st.session_state.threats = threats
 st.markdown('</div>', unsafe_allow_html=True)
 
 # 3 Metric Cards
 if st.session_state.scan_done:
     security_level = 100 - (st.session_state.threats * 25)
-    st.progress(security_level / 100)
+    st.progress(security_level)
     st.caption(f"🕒 Last Scan: {st.session_state.scan_time.strftime('%d %b %Y - %I:%M:%S %p')}")
 else:
     security_level = 0
@@ -87,12 +86,10 @@ else:
 
 st.write("")
 col1, col2, col3 = st.columns(3)
-with col1: 
-    st.markdown(f'<div class="metric-card-blue"><h4>📶 Networks Scanned</h4><h2>{st.session_state.networks}</h2></div>', unsafe_allow_html=True)
-with col2: 
-    st.markdown(f'<div class="metric-card-red"><h4>⚠️ Threats Found</h4><h2>{st.session_state.threats}</h2></div>', unsafe_allow_html=True)
+with col1: st.markdown(f'<div class="metric-card-blue"><h4>📶 Networks Scanned</h4><h2>{st.session_state.get("networks", 0)}</h2></div>', unsafe_allow_html=True)
+with col2: st.markdown(f'<div class="metric-card-red"><h4>⚠️ Threats Found</h4><h2>{st.session_state.get("threats", 0)}</h2></div>', unsafe_allow_html=True)
 with col3: 
-    status = "Safe" if st.session_state.threats == 0 else "At Risk"
+    status = "Safe" if st.session_state.get("threats", 0) == 0 else "At Risk"
     st.markdown(f'<div class="metric-card-green"><h4>🛡️ Security Status</h4><h2>{status}</h2></div>', unsafe_allow_html=True)
 
 st.write("---")
@@ -104,10 +101,10 @@ with col1:
     st.subheader("📡 Detected Networks")
     if st.session_state.scan_done:
         data = {
-            "SSID": ["PTCL_5G", "StormFiber", "EvilTwin_PTCL", "Airport_Free"],
-            "BSSID": ["AA:11:22:33:44:01", "AA:11:22:33:44:02", "DE:AD:BE:EF:52:19", "AA:11:22:33:44:03"],
+            "SSID": ["Lab_WiFi", "TP-LINK", "EvilTwin_LabWiFi", "Guest_WiFi"],
+            "BSSID": ["AA:BB:CC:11:22:33", "DD:EE:FF:44:55:66", "00:11:22:AA:BB:CC", "11:22:33:DD:EE:FF"],
             "Signal_dBm": [random.randint(-70, -40) for _ in range(4)],
-            "Encryption": ["WPA2", "WPA2", "Open", "Open"],
+            "Encryption": ["WPA2", "WPA2", "Open", "WPA3"],
             "Threat Level": ["Low", "Low", "High", "Medium"]
         }
         df = pd.DataFrame(data)
@@ -116,7 +113,6 @@ with col1:
         st.subheader("📊 Signal and Risk Analysis")
         fig = px.bar(df, x="SSID", y="Signal_dBm", color="Threat Level", 
                      color_discrete_map={"Low":"#10B981", "Medium":"#F59E0B", "High":"#EF4444"})
-        fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("👆 Please click 'Start Network Scan' button first")
@@ -126,14 +122,14 @@ with col2:
     if st.session_state.alerts:
         for alert in st.session_state.alerts:
             css_class = "alert-high" if alert['level'] == "High" else "alert-med"
-            st.markdown(f'<div class="alert-box {css_class}"><b>{alert["time"]} - {alert["type"]}</b><br><small>Action: {alert["action"]}</small></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="alert-box {css_class}"><b>Time: {alert["time"]} - {alert["type"]}</b><br><small>Action: {alert["action"]}</small></div>', unsafe_allow_html=True)
     else:
         st.write("No alerts yet")
     
     st.subheader("⛔ Blocked List")
     if st.session_state.blocked_list:
         for b in st.session_state.blocked_list:
-            st.write(f"- {b['type']} | {b['time']}")
+            st.write(f"- {b['type']} | Time: {b['time']}")
     else:
         st.write("No network blocked")
 
@@ -142,8 +138,7 @@ st.write("---")
 tab1, tab2 = st.tabs(["📈 Statistics", "📜 Log Viewer"])
 with tab1:
     st.subheader("Today's Summary")
-    st.metric("Total Networks Scanned", st.session_state.networks)
-    st.metric("Total Threats Detected", st.session_state.threats)
+    st.metric("Total Threats", st.session_state.get("threats", 0))
     st.metric("De-auth Attacks", random.randint(0, 5))
 
 with tab2:
@@ -152,4 +147,4 @@ with tab2:
 
 # Footer
 st.markdown("---")
-st.markdown('<div class="footer">Developed by Group Zeta | 2026</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer">Developed by NABIHA , KANZA , RABIA | Group Zeta | 2026</div>', unsafe_allow_html=True)
