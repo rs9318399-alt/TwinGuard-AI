@@ -15,3 +15,14 @@ def simulate_evil_twin(networks):
         "security": "Open"
     }
     return networks + [fake]
+
+def build_comparison(ssid, all_networks, trusted):
+    real_entry = None
+    fake_entry = None
+    for net in all_networks:
+        if net["ssid"] == ssid:
+            if net["bssid"] == trusted.get(ssid):
+                real_entry = net
+            else:
+                fake_entry = net
+    return {"real": real_entry, "fake": fake_entry}
