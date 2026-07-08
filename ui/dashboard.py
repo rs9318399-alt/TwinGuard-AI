@@ -103,4 +103,4 @@ with col2:
 
 # ========== FOOTER ==========
 st.markdown("---")
-st.markdown('<div class="footer">Made by NABIHA , KANZA , RABIA | 2026</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer">Made by NABIHA , KANZA , RABIA | project 2026</div>', unsafe_allow_html=True)
