@@ -14,18 +14,18 @@ st.markdown("""
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <style>
     html, body, [class*="st-"] { font-family: 'Inter', sans-serif; }
-    .main-header { font-family: 'Poppins', sans-serif; font-size: 2.4rem; font-weight: 700; color: #1E3A8A; }
-    .sub-header { color: #64748B; font-size: 1.1rem; margin-bottom: 20px; }
-    .metric-card-blue { background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%); padding: 20px; border-radius: 16px; color: white; text-align: center; }
-    .metric-card-red { background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%); padding: 20px; border-radius: 16px; color: white; text-align: center; }
-    .metric-card-green { background: linear-gradient(135deg, #059669 0%, #10B981 100%); padding: 20px; border-radius: 16px; color: white; text-align: center; }
-    .metric-card h4 { margin: 0; font-size: 1rem; font-weight: 500; }
-    .metric-card h2 { margin: 8px 0 0 0; font-size: 2.2rem; font-weight: 700; }
-    .alert-box { padding: 12px; border-radius: 10px; margin-bottom: 8px; border-left: 5px solid; }
-    .alert-high { background: #FEE2E2; border-color: #EF4444; }
-    .alert-med { background: #FEF3C7; border-color: #F59E0B; }
-    .scan-btn button { background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); color: white; font-family: 'Poppins'; font-weight: 600; border-radius: 12px; width: 100%; font-size: 1.1rem; }
-    .footer { text-align: center; color: #64748B; padding-top: 30px; }
+   .main-header { font-family: 'Poppins', sans-serif; font-size: 2.4rem; font-weight: 700; color: #1E3A8A; }
+   .sub-header { color: #64748B; font-size: 1.1rem; margin-bottom: 20px; }
+   .metric-card-blue { background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%); padding: 20px; border-radius: 16px; color: white; text-align: center; }
+   .metric-card-red { background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%); padding: 20px; border-radius: 16px; color: white; text-align: center; }
+   .metric-card-green { background: linear-gradient(135deg, #059669 0%, #10B981 100%); padding: 20px; border-radius: 16px; color: white; text-align: center; }
+   .metric-card h4 { margin: 0; font-size: 1rem; font-weight: 500; }
+   .metric-card h2 { margin: 8px 0 0 0; font-size: 2.2rem; font-weight: 700; }
+   .alert-box { padding: 12px; border-radius: 10px; margin-bottom: 8px; border-left: 5px solid; }
+   .alert-high { background: #FEE2E2; border-color: #EF4444; }
+   .alert-med { background: #FEF3C7; border-color: #F59E0B; }
+   .scan-btn button { background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); color: white; font-family: 'Poppins'; font-weight: 600; border-radius: 12px; width: 100%; font-size: 1.1rem; }
+   .footer { text-align: center; color: #64748B; padding-top: 30px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -33,6 +33,39 @@ st.markdown("""
 if 'alerts' not in st.session_state: st.session_state.alerts = []
 if 'blocked_list' not in st.session_state: st.session_state.blocked_list = []
 if 'scan_done' not in st.session_state: st.session_state.scan_done = False
+if 'show_result' not in st.session_state: st.session_state.show_result = False
+if 'result_data' not in st.session_state: st.session_state.result_data = {}
+
+# Day 5 Loading + Risk Logic
+LOADING_STEPS = [
+    "Analyzing Network...",
+    "Checking Security...",
+    "Comparing MAC Address...",
+    "Calculating Risk Score..."
+]
+
+RISK_WEIGHTS = {"Duplicate Name": 40, "Different MAC Address": 30, "Open Security": 20}
+
+def calculate_risk_score(reasons):
+    return min(sum(RISK_WEIGHTS.get(r, 0) for r in reasons), 100)
+
+def get_recommendation(score, ssid):
+    if score >= 60: return f"🚨 Don't Connect. Connect to the verified {ssid} instead."
+    elif score >= 30: return "⚠️ Caution advised. Verify this network with the venue before connecting."
+    else: return "✅ Network appears safe."
+
+def evaluate_network(network):
+    reasons = []
+    if "EvilTwin" in network["SSID"]:
+        reasons.append("Duplicate Name")
+        reasons.append("Different MAC Address")
+    if network["Encryption"] == "Open":
+        reasons.append("Open Security")
+    return reasons
+
+def analyze_network(network):
+    st.session_state.show_result = True
+    st.session_state.result_data = network
 
 # Load Trusted Baseline
 if os.path.exists("baseline.json"):
@@ -54,10 +87,10 @@ if st.button("🔍 Start Network Scan", use_container_width=True):
         time.sleep(2)
         st.session_state.scan_done = True
         st.session_state.scan_time = datetime.now()
-        
+
         networks = random.randint(18, 30)
         threats = random.randint(0, 2)
-        
+
         if threats > 0:
             new_alert = {
                 "time": datetime.now().strftime("%H:%M:%S"),
@@ -67,13 +100,56 @@ if st.button("🔍 Start Network Scan", use_container_width=True):
             }
             st.session_state.alerts.insert(0, new_alert)
             st.session_state.alerts = st.session_state.alerts[:5]
-            
+
             if new_alert['type'] not in [b['type'] for b in st.session_state.blocked_list]:
                  st.session_state.blocked_list.append({"type": new_alert['type'], "time": new_alert['time']})
-        
+
         st.session_state.networks = networks
         st.session_state.threats = threats
 st.markdown('</div>', unsafe_allow_html=True)
+
+# ===== DAY 5: LOADING + RESULT SCREEN =====
+if st.session_state.show_result:
+    network = st.session_state.result_data
+
+    # 1. Loading Animation
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    for i, step in enumerate(LOADING_STEPS):
+        status_text.markdown(f"### ⏳ {step}")
+        progress_bar.progress((i + 1) / len(LOADING_STEPS))
+        time.sleep(0.6)
+
+    status_text.empty()
+    progress_bar.empty()
+
+    # 2. Result Screen
+    st.write("---")
+    st.subheader("🚨 Threat Analysis Result")
+
+    reasons = evaluate_network(network)
+    risk_score = calculate_risk_score(reasons)
+    recommendation = get_recommendation(risk_score, network['SSID'])
+
+    col1, col2 = st.columns([1,2])
+    with col1:
+        st.metric(label="Risk Score", value=f"{risk_score}/100")
+    with col2:
+        st.metric(label="Network", value=network['SSID'])
+
+    st.write("**Detection Reasons:**")
+    for r in reasons:
+        st.write(f"• {r}")
+
+    st.info(f"**Recommendation:** {recommendation}")
+
+    if st.button("🔙 Back to Dashboard", type="primary", use_container_width=True):
+        st.session_state.show_result = False
+        st.rerun()
+
+    st.stop() # yaha ruk jao
+# ===== DAY 5 CODE END =====
 
 # 3 Metric Cards
 if st.session_state.scan_done:
@@ -88,7 +164,7 @@ st.write("")
 col1, col2, col3 = st.columns(3)
 with col1: st.markdown(f'<div class="metric-card-blue"><h4>📶 Networks Scanned</h4><h2>{st.session_state.get("networks", 0)}</h2></div>', unsafe_allow_html=True)
 with col2: st.markdown(f'<div class="metric-card-red"><h4>⚠️ Threats Found</h4><h2>{st.session_state.get("threats", 0)}</h2></div>', unsafe_allow_html=True)
-with col3: 
+with col3:
     status = "Safe" if st.session_state.get("threats", 0) == 0 else "At Risk"
     st.markdown(f'<div class="metric-card-green"><h4>🛡️ Security Status</h4><h2>{status}</h2></div>', unsafe_allow_html=True)
 
@@ -108,10 +184,30 @@ with col1:
             "Threat Level": ["Low", "Low", "High", "Medium"]
         }
         df = pd.DataFrame(data)
-        st.dataframe(df, use_container_width=True)
-        
+
+        # Table with Analyze Button
+        header_cols = st.columns([2,2,1,1,1,1])
+        header_cols[0].write("**SSID**")
+        header_cols[1].write("**BSSID**")
+        header_cols[2].write("**Signal**")
+        header_cols[3].write("**Encryption**")
+        header_cols[4].write("**Threat**")
+        header_cols[5].write("**Action**")
+
+        for index, row in df.iterrows():
+            cols = st.columns([2,2,1,1,1,1])
+            cols[0].write(row["SSID"])
+            cols[1].write(row["BSSID"])
+            cols[2].write(row["Signal_dBm"])
+            cols[3].write(row["Encryption"])
+            cols[4].write(row["Threat Level"])
+            with cols[5]:
+                if st.button("Analyze", key=f"analyze_{index}"):
+                    analyze_network(row.to_dict())
+                    st.rerun()
+
         st.subheader("📊 Signal and Risk Analysis")
-        fig = px.bar(df, x="SSID", y="Signal_dBm", color="Threat Level", 
+        fig = px.bar(df, x="SSID", y="Signal_dBm", color="Threat Level",
                      color_discrete_map={"Low":"#10B981", "Medium":"#F59E0B", "High":"#EF4444"})
         st.plotly_chart(fig, use_container_width=True)
     else:
@@ -125,7 +221,7 @@ with col2:
             st.markdown(f'<div class="alert-box {css_class}"><b>Time: {alert["time"]} - {alert["type"]}</b><br><small>Action: {alert["action"]}</small></div>', unsafe_allow_html=True)
     else:
         st.write("No alerts yet")
-    
+
     st.subheader("⛔ Blocked List")
     if st.session_state.blocked_list:
         for b in st.session_state.blocked_list:
@@ -147,4 +243,4 @@ with tab2:
 
 # Footer
 st.markdown("---")
-st.markdown('<div class="footer">Developed by NABIHA , KANZA , RABIA | Group Zeta | 2026</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer">Developed by NABIHA, KANZA, RABIA | Group Zeta | 2026</div>', unsafe_allow_html=True)
