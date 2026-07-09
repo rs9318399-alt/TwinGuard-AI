@@ -14,18 +14,19 @@ st.markdown("""
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <style>
     html, body, [class*="st-"] { font-family: 'Inter', sans-serif; }
-   .main-header { font-family: 'Poppins', sans-serif; font-size: 2.4rem; font-weight: 700; color: #1E3A8A; }
-   .sub-header { color: #64748B; font-size: 1.1rem; margin-bottom: 20px; }
-   .metric-card-blue { background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%); padding: 20px; border-radius: 16px; color: white; text-align: center; }
-   .metric-card-red { background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%); padding: 20px; border-radius: 16px; color: white; text-align: center; }
-   .metric-card-green { background: linear-gradient(135deg, #059669 0%, #10B981 100%); padding: 20px; border-radius: 16px; color: white; text-align: center; }
-   .metric-card h4 { margin: 0; font-size: 1rem; font-weight: 500; }
-   .metric-card h2 { margin: 8px 0 0 0; font-size: 2.2rem; font-weight: 700; }
-   .alert-box { padding: 12px; border-radius: 10px; margin-bottom: 8px; border-left: 5px solid; }
-   .alert-high { background: #FEE2E2; border-color: #EF4444; }
-   .alert-med { background: #FEF3C7; border-color: #F59E0B; }
-   .scan-btn button { background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); color: white; font-family: 'Poppins'; font-weight: 600; border-radius: 12px; width: 100%; font-size: 1.1rem; }
-   .footer { text-align: center; color: #64748B; padding-top: 30px; }
+  .main-header { font-family: 'Poppins', sans-serif; font-size: 2.4rem; font-weight: 700; color: #1E3A8A; }
+  .sub-header { color: #64748B; font-size: 1.1rem; margin-bottom: 20px; }
+  .metric-card-blue { background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%); padding: 20px; border-radius: 16px; color: white; text-align: center; }
+  .metric-card-red { background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%); padding: 20px; border-radius: 16px; color: white; text-align: center; }
+  .metric-card-green { background: linear-gradient(135deg, #059669 0%, #10B981 100%); padding: 20px; border-radius: 16px; color: white; text-align: center; }
+  .metric-card h4 { margin: 0; font-size: 1rem; font-weight: 500; }
+  .metric-card h2 { margin: 8px 0 0 0; font-size: 2.2rem; font-weight: 700; }
+  .alert-box { padding: 12px; border-radius: 10px; margin-bottom: 8px; border-left: 5px solid; }
+  .alert-high { background: #FEE2E2; border-color: #EF4444; }
+  .alert-med { background: #FEF3C7; border-color: #F59E0B; }
+  .scan-btn button { background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); color: white; font-family: 'Poppins'; font-weight: 600; border-radius: 12px; width: 100%; font-size: 1.1rem; }
+  .footer { text-align: center; color: #64748B; padding-top: 30px; }
+  .diff { background-color: #FEE2E2; padding: 4px 8px; border-radius: 6px; color: #991B1B; font-weight: 600; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -37,73 +38,42 @@ if 'show_result' not in st.session_state: st.session_state.show_result = False
 if 'result_data' not in st.session_state: st.session_state.result_data = {}
 
 # Day 5 Loading + Risk Logic
-LOADING_STEPS = [
-    "Analyzing Network...",
-    "Checking Security...",
-    "Comparing MAC Address...",
-    "Calculating Risk Score..."
-]
-
+LOADING_STEPS = ["Analyzing Network...", "Checking Security...", "Comparing MAC Address...", "Calculating Risk Score..."]
 RISK_WEIGHTS = {"Duplicate Name": 40, "Different MAC Address": 30, "Open Security": 20}
 
-def calculate_risk_score(reasons):
-    return min(sum(RISK_WEIGHTS.get(r, 0) for r in reasons), 100)
-
+def calculate_risk_score(reasons): return min(sum(RISK_WEIGHTS.get(r, 0) for r in reasons), 100)
 def get_recommendation(score, ssid):
     if score >= 60: return f"🚨 Don't Connect. Connect to the verified {ssid} instead."
     elif score >= 30: return "⚠️ Caution advised. Verify this network with the venue before connecting."
     else: return "✅ Network appears safe."
-
 def evaluate_network(network):
     reasons = []
-    if "EvilTwin" in network["SSID"]:
-        reasons.append("Duplicate Name")
-        reasons.append("Different MAC Address")
-    if network["Encryption"] == "Open":
-        reasons.append("Open Security")
+    if "EvilTwin" in network["SSID"]: reasons.extend(["Duplicate Name", "Different MAC Address"])
+    if network["Encryption"] == "Open": reasons.append("Open Security")
     return reasons
-
 def analyze_network(network):
     st.session_state.show_result = True
     st.session_state.result_data = network
 
-# Load Trusted Baseline
-if os.path.exists("baseline.json"):
-    with open("baseline.json", "r") as f: baseline = json.load(f)
-else:
-    baseline = {"trusted_ssid": "Lab_WiFi", "trusted_bssid": "AA:BB:CC:11:22:33"}
-
-# Header and Scan Button
+# Header
 col1, col2 = st.columns([3,1])
 with col1:
     st.markdown('<p class="main-header">🛡️ TwinGuard-AI: Evil Twin Detection System</p>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Real-time WiFi Monitoring and Threat Detection System</p>', unsafe_allow_html=True)
-with col2:
-    st.success("✅ System Active")
+with col2: st.success("✅ System Active")
 
+# Scan Button
 st.markdown('<div class="scan-btn">', unsafe_allow_html=True)
 if st.button("🔍 Start Network Scan", use_container_width=True):
-    with st.spinner("Scanning... Checking Beacon and De-auth Frames"):
+    with st.spinner("Scanning..."):
         time.sleep(2)
         st.session_state.scan_done = True
         st.session_state.scan_time = datetime.now()
-
         networks = random.randint(18, 30)
         threats = random.randint(0, 2)
-
         if threats > 0:
-            new_alert = {
-                "time": datetime.now().strftime("%H:%M:%S"),
-                "type": "Evil Twin Attack Detected",
-                "level": "High",
-                "action": "Disconnect Immediately and Block"
-            }
-            st.session_state.alerts.insert(0, new_alert)
+            st.session_state.alerts.insert(0, {"time": datetime.now().strftime("%H:%M:%S"), "type": "Evil Twin Attack Detected", "level": "High", "action": "Disconnect Immediately and Block"})
             st.session_state.alerts = st.session_state.alerts[:5]
-
-            if new_alert['type'] not in [b['type'] for b in st.session_state.blocked_list]:
-                 st.session_state.blocked_list.append({"type": new_alert['type'], "time": new_alert['time']})
-
         st.session_state.networks = networks
         st.session_state.threats = threats
 st.markdown('</div>', unsafe_allow_html=True)
@@ -111,136 +81,87 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ===== DAY 5: LOADING + RESULT SCREEN =====
 if st.session_state.show_result:
     network = st.session_state.result_data
-
-    # 1. Loading Animation
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-
+    progress_bar = st.progress(0); status_text = st.empty()
     for i, step in enumerate(LOADING_STEPS):
-        status_text.markdown(f"### ⏳ {step}")
-        progress_bar.progress((i + 1) / len(LOADING_STEPS))
-        time.sleep(0.6)
-
-    status_text.empty()
-    progress_bar.empty()
-
-    # 2. Result Screen
-    st.write("---")
-    st.subheader("🚨 Threat Analysis Result")
-
-    reasons = evaluate_network(network)
-    risk_score = calculate_risk_score(reasons)
-    recommendation = get_recommendation(risk_score, network['SSID'])
-
-    col1, col2 = st.columns([1,2])
-    with col1:
-        st.metric(label="Risk Score", value=f"{risk_score}/100")
-    with col2:
-        st.metric(label="Network", value=network['SSID'])
-
-    st.write("**Detection Reasons:**")
-    for r in reasons:
-        st.write(f"• {r}")
-
+        status_text.markdown(f"### ⏳ {step}"); progress_bar.progress((i + 1) / len(LOADING_STEPS)); time.sleep(0.6)
+    status_text.empty(); progress_bar.empty()
+    st.write("---"); st.subheader("🚨 Threat Analysis Result")
+    reasons = evaluate_network(network); risk_score = calculate_risk_score(reasons); recommendation = get_recommendation(risk_score, network['SSID'])
+    col1, col2 = st.columns([1,2]); col1.metric("Risk Score", f"{risk_score}/100"); col2.metric("Network", network['SSID'])
+    st.write("**Detection Reasons:**"); [st.write(f"• {r}") for r in reasons]
     st.info(f"**Recommendation:** {recommendation}")
-
-    if st.button("🔙 Back to Dashboard", type="primary", use_container_width=True):
-        st.session_state.show_result = False
-        st.rerun()
-
-    st.stop() # yaha ruk jao
+    if st.button("🔙 Back to Dashboard", type="primary", use_container_width=True): st.session_state.show_result = False; st.rerun()
+    st.stop()
 # ===== DAY 5 CODE END =====
 
 # 3 Metric Cards
 if st.session_state.scan_done:
-    security_level = 100 - (st.session_state.threats * 25)
-    st.progress(security_level)
+    security_level = 100 - (st.session_state.threats * 25); st.progress(security_level)
     st.caption(f"🕒 Last Scan: {st.session_state.scan_time.strftime('%d %b %Y - %I:%M:%S %p')}")
-else:
-    security_level = 0
-    st.caption("🕒 Last Scan: Never")
+else: st.caption("🕒 Last Scan: Never")
 
-st.write("")
-col1, col2, col3 = st.columns(3)
+st.write(""); col1, col2, col3 = st.columns(3)
 with col1: st.markdown(f'<div class="metric-card-blue"><h4>📶 Networks Scanned</h4><h2>{st.session_state.get("networks", 0)}</h2></div>', unsafe_allow_html=True)
 with col2: st.markdown(f'<div class="metric-card-red"><h4>⚠️ Threats Found</h4><h2>{st.session_state.get("threats", 0)}</h2></div>', unsafe_allow_html=True)
-with col3:
-    status = "Safe" if st.session_state.get("threats", 0) == 0 else "At Risk"
-    st.markdown(f'<div class="metric-card-green"><h4>🛡️ Security Status</h4><h2>{status}</h2></div>', unsafe_allow_html=True)
+with col3: status = "Safe" if st.session_state.get("threats", 0) == 0 else "At Risk"; st.markdown(f'<div class="metric-card-green"><h4>🛡️ Security Status</h4><h2>{status}</h2></div>', unsafe_allow_html=True)
 
 st.write("---")
 
-# Main Dashboard
-col1, col2 = st.columns([2,1])
+# ===== DAY 7 CODE START: TABS WITH COMPARISON =====
+tab1, tab2, tab3 = st.tabs(["📡 Detected Networks", "🔍 Comparison", "📜 Log Viewer"])
 
-with col1:
-    st.subheader("📡 Detected Networks")
+with tab1: # Purana wala Dashboard
+    col1, col2 = st.columns([2,1])
+    with col1:
+        st.subheader("Detected Networks")
+        if st.session_state.scan_done:
+            data = {"SSID": ["Lab_WiFi", "TP-LINK", "EvilTwin_LabWiFi", "Guest_WiFi"], "BSSID": ["AA:BB:CC:11:22:33", "DD:EE:FF:44:55:66", "00:11:22:AA:BB:CC", "11:22:33:DD:EE:FF"], "Signal_dBm": [random.randint(-70, -40) for _ in range(4)], "Encryption": ["WPA2", "WPA2", "Open", "WPA3"], "Threat Level": ["Low", "Low", "High", "Medium"]}
+            df = pd.DataFrame(data)
+            header_cols = st.columns([2,2,1,1,1,1]); header_cols[0].write("**SSID**"); header_cols[1].write("**BSSID**"); header_cols[2].write("**Signal**"); header_cols[3].write("**Encryption**"); header_cols[4].write("**Threat**"); header_cols[5].write("**Action**")
+            for index, row in df.iterrows():
+                cols = st.columns([2,2,1,1,1,1]); cols[0].write(row["SSID"]); cols[1].write(row["BSSID"]); cols[2].write(row["Signal_dBm"]); cols[3].write(row["Encryption"]); cols[4].write(row["Threat Level"])
+                with cols[5]:
+                    if st.button("Analyze", key=f"analyze_{index}"): analyze_network(row.to_dict()); st.rerun()
+            st.subheader("📊 Signal and Risk Analysis"); fig = px.bar(df, x="SSID", y="Signal_dBm", color="Threat Level", color_discrete_map={"Low":"#10B981", "Medium":"#F59E0B", "High":"#EF4444"}); st.plotly_chart(fig, use_container_width=True)
+        else: st.info("👆 Please click 'Start Network Scan' button first")
+    with col2:
+        st.subheader("🚨 Live Alerts")
+        if st.session_state.alerts: [st.markdown(f'<div class="alert-box alert-high"><b>Time: {a["time"]} - {a["type"]}</b><br><small>Action: {a["action"]}</small></div>', unsafe_allow_html=True) for a in st.session_state.alerts]
+        else: st.write("No alerts yet")
+        st.subheader("⛔ Blocked List")
+        if st.session_state.blocked_list: [st.write(f"- {b['type']} | Time: {b['time']}") for b in st.session_state.blocked_list]
+        else: st.write("No network blocked")
+
+with tab2: # DAY 7 NEW CODE
+    st.subheader("🔍 Real vs Evil Twin Network Comparison")
+    st.write("Compare suspicious network with the trusted baseline to find differences.")
+
     if st.session_state.scan_done:
-        data = {
-            "SSID": ["Lab_WiFi", "TP-LINK", "EvilTwin_LabWiFi", "Guest_WiFi"],
-            "BSSID": ["AA:BB:CC:11:22:33", "DD:EE:FF:44:55:66", "00:11:22:AA:BB:CC", "11:22:33:DD:EE:FF"],
-            "Signal_dBm": [random.randint(-70, -40) for _ in range(4)],
-            "Encryption": ["WPA2", "WPA2", "Open", "WPA3"],
-            "Threat Level": ["Low", "Low", "High", "Medium"]
-        }
-        df = pd.DataFrame(data)
+        # Real Network - baseline se
+        real_network = {"SSID": "Lab_WiFi", "BSSID": "AA:BB:CC:11:22:33", "Encryption": "WPA2", "Signal": "-45 dBm"}
+        # Fake Network - dummy data
+        fake_network = {"SSID": "EvilTwin_LabWiFi", "BSSID": "00:11:22:AA:BB:CC", "Encryption": "Open", "Signal": "-38 dBm"}
 
-        # Table with Analyze Button
-        header_cols = st.columns([2,2,1,1,1,1])
-        header_cols[0].write("**SSID**")
-        header_cols[1].write("**BSSID**")
-        header_cols[2].write("**Signal**")
-        header_cols[3].write("**Encryption**")
-        header_cols[4].write("**Threat**")
-        header_cols[5].write("**Action**")
+        comp_df = pd.DataFrame({
+            "Property": ["SSID", "BSSID", "Encryption", "Signal Strength"],
+            "Real Network": [real_network["SSID"], real_network["BSSID"], real_network["Encryption"], real_network["Signal"]],
+            "Suspicious Network": [fake_network["SSID"], fake_network["BSSID"], fake_network["Encryption"], fake_network["Signal"]]
+        })
 
-        for index, row in df.iterrows():
-            cols = st.columns([2,2,1,1,1,1])
-            cols[0].write(row["SSID"])
-            cols[1].write(row["BSSID"])
-            cols[2].write(row["Signal_dBm"])
-            cols[3].write(row["Encryption"])
-            cols[4].write(row["Threat Level"])
-            with cols[5]:
-                if st.button("Analyze", key=f"analyze_{index}"):
-                    analyze_network(row.to_dict())
-                    st.rerun()
+        def highlight_diff(val, prop):
+            if prop == "BSSID" and val!= real_network["BSSID"]: return 'background-color: #FEE2E2; color: #991B1B; font-weight: bold;'
+            if prop == "Encryption" and val!= real_network["Encryption"]: return 'background-color: #FEE2E2; color: #991B1B; font-weight: bold;'
+            return ''
 
-        st.subheader("📊 Signal and Risk Analysis")
-        fig = px.bar(df, x="SSID", y="Signal_dBm", color="Threat Level",
-                     color_discrete_map={"Low":"#10B981", "Medium":"#F59E0B", "High":"#EF4444"})
-        st.plotly_chart(fig, use_container_width=True)
+        styled_df = comp_df.style.apply(lambda x: [highlight_diff(v, x['Property']) for v in x], axis=1)
+        st.dataframe(styled_df, use_container_width=True)
+        st.error("⚠️ Mismatch Found: BSSID and Encryption do not match the trusted network. This is a likely Evil Twin attack.")
     else:
-        st.info("👆 Please click 'Start Network Scan' button first")
+        st.warning("Please run a scan first to enable comparison.")
 
-with col2:
-    st.subheader("🚨 Live Alerts")
-    if st.session_state.alerts:
-        for alert in st.session_state.alerts:
-            css_class = "alert-high" if alert['level'] == "High" else "alert-med"
-            st.markdown(f'<div class="alert-box {css_class}"><b>Time: {alert["time"]} - {alert["type"]}</b><br><small>Action: {alert["action"]}</small></div>', unsafe_allow_html=True)
-    else:
-        st.write("No alerts yet")
-
-    st.subheader("⛔ Blocked List")
-    if st.session_state.blocked_list:
-        for b in st.session_state.blocked_list:
-            st.write(f"- {b['type']} | Time: {b['time']}")
-    else:
-        st.write("No network blocked")
-
-# Tabs
-st.write("---")
-tab1, tab2 = st.tabs(["📈 Statistics", "📜 Log Viewer"])
-with tab1:
-    st.subheader("Today's Summary")
-    st.metric("Total Threats", st.session_state.get("threats", 0))
-    st.metric("De-auth Attacks", random.randint(0, 5))
-
-with tab2:
-    st.subheader("Old Alerts Record")
-    st.code("2026-04-05 10:23:11 - Evil Twin Detected - Blocked\n2026-04-05 10:20:02 - Open Network Found")
+with tab3: # Log Viewer
+    st.subheader("Today's Summary"); st.metric("Total Threats", st.session_state.get("threats", 0)); st.metric("De-auth Attacks", random.randint(0, 5))
+    st.write("---"); st.subheader("Old Alerts Record"); st.code("2026-04-05 10:23:11 - Evil Twin Detected - Blocked\n2026-04-05 10:20:02 - Open Network Found")
 
 # Footer
-st.markdown("---")
-st.markdown('<div class="footer">Developed by NABIHA, KANZA, RABIA | Group Zeta | 2026</div>', unsafe_allow_html=True)
+st.markdown("---"); st.markdown('<div class="footer">Developed by NABIHA, KANZA, RABIA | Group Zeta | 2026</div>', unsafe_allow_html=True)
