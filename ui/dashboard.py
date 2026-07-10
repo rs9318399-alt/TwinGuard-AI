@@ -1,25 +1,21 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 from datetime import datetime
-import subprocess
-import re
 from fpdf import FPDF
 import time
-import os
+import random
 
 st.set_page_config(page_title="TwinGuard AI", page_icon="🛡️", layout="wide")
 
 # ==========================
-# CUSTOM CSS - FONT FIX KIYA
+# CUSTOM CSS - FONT FIX
 # ==========================
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
 * {font-family: 'Poppins', sans-serif!important; text-transform: none!important;}
 .main{ background:#0f172a; }
-.block-container{ padding-top:1rem; }
 .title{ font-size:38px; color:#00E5FF; font-weight:bold; }
 .subtitle{ color:white; font-size:18px; }
 .metric-card{ background:#1e293b; padding:20px; border-radius:15px; text-align:center; box-shadow:0px 0px 15px rgba(0,255,255,.2); }
@@ -39,57 +35,28 @@ st.markdown('<div class="subtitle">Evil Twin WiFi Detection System</div>', unsaf
 st.write("")
 
 # ==========================
-# REAL WIFI SCANNER FUNCTION - FIXED
+# CLOUD FRIENDLY WIFI SCANNER - NETSH HATA DIYA
 # ==========================
 def scan_wifi():
+    # Ab ye random demo data banayega har scan pe
+    ssid_pool = ["PTCL_5G", "StormFiber", "Airport_Free", "Jazz_WiFi", "TP-Link", "Home_WiFi"]
     networks = []
-    try:
-        # NETSH KA FULL PATH DIYA
-        netsh_path = r"C:\Windows\System32\netsh.exe"
-        if not os.path.exists(netsh_path):
-            raise FileNotFoundError("netsh.exe not found")
-
-        result = subprocess.run([netsh_path, 'wlan', 'show', 'networks', 'mode=bssid'],
-                                capture_output=True, text=True, encoding='cp850', shell=True, timeout=15)
-        output = result.stdout
-
-        ssid = ""
-        bssid_list = []
-        signal_list = []
-        security = "Unknown"
-
-        for line in output.split('\n'):
-            line = line.strip()
-            if "SSID" in line and "BSSID" not in line:
-                if ssid and bssid_list:
-                    for j in range(len(bssid_list)):
-                        networks.append({"SSID": ssid, "BSSID": bssid_list[j], "Signal": signal_list[j], "Security": security})
-                    bssid_list = []
-                    signal_list = []
-                ssid = line.split(":")[1].strip()
-
-            if "Authentication" in line:
-                security = line.split(":")[1].strip()
-            if "BSSID" in line:
-                bssid_list.append(line.split(":")[1].strip())
-            if "Signal" in line:
-                signal_str = line.split(":")[1].strip().replace("%","")
-                signal = int((int(signal_str) / 2) - 100)
-                signal_list.append(signal)
-
-        if ssid and bssid_list:
-            for j in range(len(bssid_list)):
-                networks.append({"SSID": ssid, "BSSID": bssid_list[j], "Signal": signal_list[j], "Security": security})
-
-    except Exception as e:
-        st.warning(f"⚠️ Real Scan Failed. Showing Demo Data. Error: {e}")
-        networks = [
-            {"SSID": "PTCL_5G", "BSSID": "AA:11:22:33:44:01", "Signal": -60, "Security": "WPA2-Personal"},
-            {"SSID": "StormFiber", "BSSID": "AA:11:22:33:44:02", "Signal": -55, "Security": "WPA2-Personal"},
-            {"SSID": "Airport_Free", "BSSID": "AA:11:22:33:44:03", "Signal": -70, "Security": "WPA2-Personal"},
-            {"SSID": "Airport_Free", "BSSID": "DE:AD:BE:EF:11:22", "Signal": -25, "Security": "Open"}
-        ]
-    return networks
+    
+    # 3-5 random networks
+    for _ in range(random.randint(3,5)):
+        ssid = random.choice(ssid_pool)
+        bssid = ":".join([f"{random.randint(0,255):02x}" for _ in range(6)]).upper()
+        signal = random.randint(-80, -30)
+        security = random.choice(["WPA2-Personal", "WPA3", "Open"])
+        networks.append({"SSID": ssid, "BSSID": bssid, "Signal": signal, "Security": security})
+    
+    # 1 Evil Twin zaroor daal do testing ke liye
+    evil_ssid = random.choice(ssid_pool)
+    networks.append({"SSID": evil_ssid, "BSSID": "DE:AD:BE:EF:11:22", "Signal": -25, "Security": "Open"})
+    
+    # duplicate hatao
+    df_temp = pd.DataFrame(networks).drop_duplicates(subset=['BSSID'])
+    return df_temp.to_dict('records')
 
 # ==========================
 # EVIL TWIN DETECTION LOGIC
