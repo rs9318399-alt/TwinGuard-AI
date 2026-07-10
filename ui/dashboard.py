@@ -4,7 +4,6 @@ import plotly.graph_objects as go
 from datetime import datetime
 from fpdf import FPDF
 import time
-from scanner import get_networks # <-- BACKEND CONNECT
 
 st.set_page_config(page_title="TwinGuard AI", page_icon="🛡️", layout="wide")
 
@@ -33,10 +32,16 @@ st.sidebar.success("System Online")
 st.markdown('<div class="title">🛡 TwinGuard AI Dashboard</div>', unsafe_allow_html=True)
 
 # ==========================
-# SCANNER - AB BACKEND SE CONNECT
+# SCANNER - CLOUD KE LIYE DEMO
 # ==========================
 def scan_wifi():
-    return get_networks() # <-- AB YE REAL SCAN KAREGA
+    networks = []
+    # Streamlit Cloud pe real wifi scan nahi hota isliye demo data
+    networks.append({"SSID": "PTCL_5G", "BSSID": "AA:11:22:33:44:01", "Signal": -55, "Security": "WPA2-Personal", "Type": "Real"})
+    networks.append({"SSID": "PTCL_5G", "BSSID": "DE:AD:BE:EF:11:22", "Signal": -28, "Security": "Open authentication", "Type": "Fake"}) # YE EVIL TWIN HAI
+    networks.append({"SSID": "StormFiber", "BSSID": "AA:11:22:33:44:02", "Signal": -60, "Security": "WPA2-Personal", "Type": "Real"})
+    networks.append({"SSID": "Jazz_WiFi", "BSSID": "FF:EE:DD:CC:BB:01", "Signal": -70, "Security": "WPA2-Personal", "Type": "Real"})
+    return networks
 
 # ==========================
 # DETECTION LOGIC
@@ -109,8 +114,6 @@ if page == "Dashboard":
         st.markdown("## 📶 Click to Analyze & Block")
         
         for index, row in df.iterrows():
-            # AGAR BLOCKED HAI TO CARD RED KAR DO
-            card_class = "blocked" if row["BSSID"] in st.session_state.blocked_list else ""
             with st.container():
                 col1, col2, col3, col4, col5 = st.columns([3,3,2,2,2])
                 with col1: st.write(f"**{row['SSID']}**")
@@ -157,7 +160,7 @@ elif page == "Threat History":
     else: st.info("No logs yet.")
 
 # ==========================
-# PAGE 3: BLOCKED LIST - NAYA PAGE
+# PAGE 3: BLOCKED LIST
 # ==========================
 elif page == "Blocked List":
     st.markdown("## ⛔ Blocked Networks")
