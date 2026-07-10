@@ -680,7 +680,7 @@ def create_pdf():
         "Recommendation:\nAvoid connecting to duplicate SSID networks. Verify the MAC address before connecting."
     )
 
-    return pdf.output(dest="S").encode("latin-1")
+  return bytes(pdf.output(dest="S"))
 
 pdf_bytes = create_pdf()
 
