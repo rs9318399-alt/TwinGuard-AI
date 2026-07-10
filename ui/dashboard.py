@@ -4,13 +4,14 @@ import plotly.graph_objects as go
 from datetime import datetime
 from fpdf import FPDF
 import time
+from scanner import get_networks # <-- BACKEND CONNECT
 
 st.set_page_config(page_title="TwinGuard AI", page_icon="🛡️", layout="wide")
 
 # SESSION STATE
 if 'logs' not in st.session_state: st.session_state.logs = []
 if 'df' not in st.session_state: st.session_state.df = pd.DataFrame()
-if 'blocked_list' not in st.session_state: st.session_state.blocked_list = [] # NAYA
+if 'blocked_list' not in st.session_state: st.session_state.blocked_list = [] 
 
 st.markdown("""
 <style>
@@ -21,6 +22,7 @@ st.markdown("""
 .metric-card{ background:#1e293b; padding:20px; border-radius:15px; text-align:center; }
 .metric-number{ color:#00E5FF; font-size:35px; font-weight:bold; }
 .blocked{ background:#7f1d1d!important; border:2px solid red; }
+div.stButton > button{ background:#00E5FF; color:#0f172a; font-weight:600; border-radius:10px; }
 </style>
 """,unsafe_allow_html=True)
 
@@ -31,14 +33,10 @@ st.sidebar.success("System Online")
 st.markdown('<div class="title">🛡 TwinGuard AI Dashboard</div>', unsafe_allow_html=True)
 
 # ==========================
-# SCANNER
+# SCANNER - AB BACKEND SE CONNECT
 # ==========================
 def scan_wifi():
-    networks = []
-    networks.append({"SSID": "PTCL_5G", "BSSID": "AA:11:22:33:44:01", "Signal": -55, "Security": "WPA2-Personal", "Type": "Real"})
-    networks.append({"SSID": "PTCL_5G", "BSSID": "DE:AD:BE:EF:11:22", "Signal": -28, "Security": "Open", "Type": "Fake"})
-    networks.append({"SSID": "StormFiber", "BSSID": "AA:11:22:33:44:02", "Signal": -60, "Security": "WPA2-Personal", "Type": "Real"})
-    return networks
+    return get_networks() # <-- AB YE REAL SCAN KAREGA
 
 # ==========================
 # DETECTION LOGIC
@@ -53,10 +51,13 @@ def check_network(row):
         reason = "This BSSID is in your Blocked List. You marked it as Evil Twin."
     elif row["Type"] == "Fake":
         status = "🚨 EVIL TWIN - FAKE"
-        if row["Security"] == "Open":
+        if "Open" in row["Security"]:
             reason = "Duplicate SSID with Open Security. Real routers are always encrypted."
         elif row["Signal"] > -35:
             reason = "Signal too strong. Hacker router is placed very close to you."
+    elif row["Type"] == "Suspicious":
+        status = "⚠ SUSPICIOUS"
+        reason = "Duplicate SSID found but both are encrypted. Could be Mesh/Extender."
     else:
         status = "✅ SECURE - REAL"
         reason = "WPA2/WPA3 encryption and normal signal. This is the real router."
@@ -79,7 +80,7 @@ def create_pdf(logs_df):
     pdf.cell(40, 10, "Time", 1); pdf.cell(40, 10, "SSID", 1); pdf.cell(50, 10, "BSSID", 1); pdf.cell(40, 10, "Status", 1); pdf.ln()
     pdf.set_font("Arial","",9)
     for _, row in logs_df.iterrows():
-        pdf.cell(40, 10, row['Time'], 1); pdf.cell(40, 10, row['SSID'], 1); pdf.cell(50, 10, row['BSSID'], 1); pdf.cell(40, 10, row['Status'], 1); pdf.ln()
+        pdf.cell(40, 10, str(row['Time']), 1); pdf.cell(40, 10, str(row['SSID']), 1); pdf.cell(50, 10, str(row['BSSID']), 1); pdf.cell(40, 10, str(row['Status']), 1); pdf.ln()
     return bytes(pdf.output(dest="S"))
 
 # ==========================
@@ -97,7 +98,7 @@ if page == "Dashboard":
         total_networks = len(df)
         dangerous = len(df[df["Type"] == "Fake"])
         safe_networks = total_networks - dangerous
-        risk_score = int((dangerous / total_networks * 100))
+        risk_score = int((dangerous / total_networks * 100)) if total_networks > 0 else 0
 
         c1,c2,c3,c4=st.columns(4)
         with c1: st.metric("Networks", total_networks)
