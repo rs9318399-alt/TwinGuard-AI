@@ -7,14 +7,17 @@ import subprocess
 import re
 from fpdf import FPDF
 import time
+import os
 
 st.set_page_config(page_title="TwinGuard AI", page_icon="🛡️", layout="wide")
 
 # ==========================
-# CUSTOM CSS
+# CUSTOM CSS - FONT FIX KIYA
 # ==========================
 st.markdown("""
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+* {font-family: 'Poppins', sans-serif!important; text-transform: none!important;}
 .main{ background:#0f172a; }
 .block-container{ padding-top:1rem; }
 .title{ font-size:38px; color:#00E5FF; font-weight:bold; }
@@ -36,71 +39,55 @@ st.markdown('<div class="subtitle">Evil Twin WiFi Detection System</div>', unsaf
 st.write("")
 
 # ==========================
-# REAL WIFI SCANNER FUNCTION
+# REAL WIFI SCANNER FUNCTION - FIXED
 # ==========================
 def scan_wifi():
     networks = []
     try:
-        # Windows ke liye netsh command
-        result = subprocess.run(['netsh', 'wlan', 'show', 'networks', 'mode=bssid'],
-                                capture_output=True, text=True, encoding='cp850')
+        # NETSH KA FULL PATH DIYA
+        netsh_path = r"C:\Windows\System32\netsh.exe"
+        if not os.path.exists(netsh_path):
+            raise FileNotFoundError("netsh.exe not found")
+
+        result = subprocess.run([netsh_path, 'wlan', 'show', 'networks', 'mode=bssid'],
+                                capture_output=True, text=True, encoding='cp850', shell=True, timeout=15)
         output = result.stdout
 
         ssid = ""
         bssid_list = []
         signal_list = []
-        security = ""
+        security = "Unknown"
 
-        lines = output.split('\n')
-        i = 0
-        while i < len(lines):
-            line = lines[i]
+        for line in output.split('\n'):
+            line = line.strip()
             if "SSID" in line and "BSSID" not in line:
-                if ssid and bssid_list: # pehle wala save karo
+                if ssid and bssid_list:
                     for j in range(len(bssid_list)):
-                        networks.append({
-                            "SSID": ssid,
-                            "BSSID": bssid_list[j],
-                            "Signal": signal_list[j],
-                            "Security": security
-                        })
+                        networks.append({"SSID": ssid, "BSSID": bssid_list[j], "Signal": signal_list[j], "Security": security})
                     bssid_list = []
                     signal_list = []
-
                 ssid = line.split(":")[1].strip()
-                security = "Unknown"
 
             if "Authentication" in line:
                 security = line.split(":")[1].strip()
-
             if "BSSID" in line:
-                bssid = line.split(":")[1].strip()
-                bssid_list.append(bssid)
-
+                bssid_list.append(line.split(":")[1].strip())
             if "Signal" in line:
                 signal_str = line.split(":")[1].strip().replace("%","")
-                signal = int((int(signal_str) / 2) - 100) # % to dBm
+                signal = int((int(signal_str) / 2) - 100)
                 signal_list.append(signal)
-            i += 1
 
-        # last wala
         if ssid and bssid_list:
             for j in range(len(bssid_list)):
-                networks.append({
-                    "SSID": ssid,
-                    "BSSID": bssid_list[j],
-                    "Signal": signal_list[j],
-                    "Security": security
-                })
+                networks.append({"SSID": ssid, "BSSID": bssid_list[j], "Signal": signal_list[j], "Security": security})
 
     except Exception as e:
-        st.error(f"Scan Error: {e}")
-        # agar scan fail ho to demo data
+        st.warning(f"⚠️ Real Scan Failed. Showing Demo Data. Error: {e}")
         networks = [
-            {"SSID": "PTCL_5G", "BSSID": "AA:11:22:33:44:01", "Signal": -60, "Security": "WPA2"},
-            {"SSID": "StormFiber", "BSSID": "AA:11:22:33:44:02", "Signal": -55, "Security": "WPA2"},
-            {"SSID": "Airport_Free", "BSSID": "AA:11:22:33:44:03", "Signal": -70, "Security": "WPA2"},
-            {"SSID": "Airport_Free", "BSSID": "DE:AD:BE:EF:11:22", "Signal": -25, "Security": "Open"} # Fake
+            {"SSID": "PTCL_5G", "BSSID": "AA:11:22:33:44:01", "Signal": -60, "Security": "WPA2-Personal"},
+            {"SSID": "StormFiber", "BSSID": "AA:11:22:33:44:02", "Signal": -55, "Security": "WPA2-Personal"},
+            {"SSID": "Airport_Free", "BSSID": "AA:11:22:33:44:03", "Signal": -70, "Security": "WPA2-Personal"},
+            {"SSID": "Airport_Free", "BSSID": "DE:AD:BE:EF:11:22", "Signal": -25, "Security": "Open"}
         ]
     return networks
 
@@ -110,18 +97,12 @@ def scan_wifi():
 def detect_evil_twins(df):
     threats = []
     duplicate_ssids = df[df.duplicated("SSID", keep=False)]
-
     for ssid in duplicate_ssids["SSID"].unique():
         same_name = df[df["SSID"] == ssid]
         if len(same_name) > 1:
-            # Agar 1 Open hai ya signal bahut strong hai to fake
             for _, row in same_name.iterrows():
                 if row["Security"] == "Open" or row["Signal"] > -35:
-                    threats.append({
-                        "SSID": row["SSID"],
-                        "BSSID": row["BSSID"],
-                        "Reason": "Duplicate SSID + Open/Strong Signal"
-                    })
+                    threats.append({"SSID": row["SSID"], "BSSID": row["BSSID"], "Reason": "Duplicate SSID + Open/Strong Signal"})
     return threats
 
 # ==========================
@@ -130,14 +111,10 @@ def detect_evil_twins(df):
 if st.button("🔄 Scan Networks"):
     with st.spinner("Scanning WiFi Networks..."):
         time.sleep(2)
-        wifi_networks = scan_wifi()
-    st.success("Scan Complete!")
-else:
-    wifi_networks = scan_wifi()
 
+wifi_networks = scan_wifi()
 df = pd.DataFrame(wifi_networks)
 total_networks = len(df)
-duplicate = df[df.duplicated("SSID", keep=False)]
 dangerous = len(detect_evil_twins(df))
 safe_networks = total_networks - dangerous
 risk_score = int((dangerous / total_networks * 100) if total_networks > 0 else 0)
@@ -154,6 +131,7 @@ st.write("")
 fig=go.Figure(go.Indicator(mode="gauge+number", value=risk_score, title={"text":"Overall Risk"},
     gauge={"axis":{"range":[0,100]}, "bar":{"color":"red"},
     "steps":[{"range":[0,30],"color":"green"},{"range":[30,60],"color":"orange"},{"range":[60,100],"color":"red"}]}))
+fig.update_layout(template="plotly_dark")
 st.plotly_chart(fig,use_container_width=True)
 
 st.markdown("## 📶 Available WiFi Networks")
@@ -169,33 +147,13 @@ threats = detect_evil_twins(df)
 if len(threats) > 0:
     for t in threats:
         st.error(f"🚨 EVIL TWIN DETECTED!")
-        st.warning(f"SSID: {t['SSID']}\nBSSID: {t['BSSID']}\nReason: {t['Reason']}\n❌ Don't Connect")
+        st.warning(f"**SSID:** {t['SSID']}\n**BSSID:** {t['BSSID']}\n**Reason:** {t['Reason']}\n\n❌ **Don't Connect**")
 else:
     st.success("✅ No Evil Twin Detected. Network is Safe")
 
 st.divider()
 
-# ==========================
-# COMPARISON TABLE
-# ==========================
-st.markdown("## 🛡 Real vs Fake WiFi Comparison")
-if len(duplicate) > 0:
-    compare = duplicate.copy()
-    compare["Type"] = "✅ Real"
-    # sab se strong signal wala real, baqi fake
-    for ssid in compare["SSID"].unique():
-        same = compare[compare["SSID"]==ssid].sort_values("Signal", ascending=False)
-        if len(same) > 1:
-            compare.loc[same.index[1:], "Type"] = "❌ Fake"
-    st.dataframe(compare[["Type","SSID","BSSID","Signal","Security"]], use_container_width=True, hide_index=True)
-else:
-    st.success("No Duplicate SSID Found")
-
-st.divider()
-
-# ==========================
 # PDF REPORT
-# ==========================
 st.markdown("## 📄 Generate Report")
 def create_pdf():
     pdf = FPDF()
