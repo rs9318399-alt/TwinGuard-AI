@@ -7,7 +7,11 @@ def get_networks():
 
     try:
         # Windows wifi scan command
-        result = subprocess.check_output(["netsh", "wlan", "show", "networks", "mode=bssid"], encoding='utf-8', errors="ignore")
+        result = subprocess.check_output(
+            ["netsh", "wlan", "show", "networks", "mode=bssid"], 
+            encoding='utf-8', 
+            errors="ignore" # <-- ye theek kiya
+        )
 
         ssid, bssid, signal, auth = "", "", 0, ""
         for line in result.split("\n"):
@@ -24,21 +28,19 @@ def get_networks():
                 # EVIL TWIN CHECK
                 net_type = "Real"
                 if ssid in ssid_tracker:
-                    if auth == "Open authentication" or ssid_tracker[ssid] == "Open authentication":
+                    if auth == "Open" or ssid_tracker[ssid] == "Open":
                         net_type = "Fake" # 1 real + 1 open = Evil Twin
-                ssid_tracker[ssid] = auth
+                
+                ssid_tracker[ssid] = auth # <-- ye theek kiya
 
+                # DATA KO LIST ME DALO - ye miss tha
                 networks.append({
-                    "SSID": ssid,
-                    "BSSID": bssid,
+                    "SSID": ssid, 
+                    "BSSID": bssid, 
                     "Signal": signal,
-                    "Security": auth,
+                    "Security": auth, 
                     "Type": net_type
                 })
-    except:
-        # agar error aaye to test data
-        networks = [
-            {"SSID": "PTCL_5G", "BSSID": "AA:11:22:33:44:01", "Signal": -55, "Security": "WPA2-Personal", "Type": "Real"},
-            {"SSID": "PTCL_5G", "BSSID": "DE:AD:BE:EF:11:22", "Signal": -28, "Security": "Open authentication", "Type": "Fake"},
-        ]
+    except Exception as e:
+        print("Scan Error:", e)
     return networks
