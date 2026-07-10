@@ -683,7 +683,7 @@ def create_pdf():
   return bytes(pdf.output(dest="S"))
 
 pdf_bytes = create_pdf()
-
+"""
 st.download_button(
     "⬇ Download PDF Report",
     pdf_bytes,
@@ -692,7 +692,7 @@ st.download_button(
 )
 
 st.divider()
-
+"""
 # =====================================================
 # REFRESH BUTTON
 # =====================================================
