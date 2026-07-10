@@ -3,239 +3,198 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime
-import io
+import subprocess
+import re
 from fpdf import FPDF
+import time
 
-# ==========================
-# PAGE CONFIG
-# ==========================
-st.set_page_config(
-    page_title="TwinGuard AI",
-    page_icon="🛡️",
-    layout="wide"
-)
+st.set_page_config(page_title="TwinGuard AI", page_icon="🛡️", layout="wide")
 
 # ==========================
 # CUSTOM CSS
 # ==========================
 st.markdown("""
 <style>
-.main{
-    background:#0f172a;
-}
-.block-container{
-    padding-top:1rem;
-}
-.title{
-    font-size:38px;
-    color:#00E5FF;
-    font-weight:bold;
-}
-.subtitle{
-    color:white;
-    font-size:18px;
-}
-.metric-card{
-    background:#1e293b;
-    padding:20px;
-    border-radius:15px;
-    text-align:center;
-    box-shadow:0px 0px 15px rgba(0,255,255,.2);
-}
-.metric-number{
-    color:#00E5FF;
-    font-size:35px;
-    font-weight:bold;
-}
-.metric-title{
-    color:white;
-    font-size:16px;
-}
+.main{ background:#0f172a; }
+.block-container{ padding-top:1rem; }
+.title{ font-size:38px; color:#00E5FF; font-weight:bold; }
+.subtitle{ color:white; font-size:18px; }
+.metric-card{ background:#1e293b; padding:20px; border-radius:15px; text-align:center; box-shadow:0px 0px 15px rgba(0,255,255,.2); }
+.metric-number{ color:#00E5FF; font-size:35px; font-weight:bold; }
+.metric-title{ color:white; font-size:16px; }
 </style>
 """,unsafe_allow_html=True)
 
-# ==========================
-# SIDEBAR
-# ==========================
 st.sidebar.image("https://img.icons8.com/color/96/shield.png", width=80)
 st.sidebar.title("TwinGuard AI")
 page=st.sidebar.radio("Navigation", ["Dashboard","WiFi Scanner","Threat History","Settings"])
 st.sidebar.markdown("---")
 st.sidebar.success("System Online")
 
-# ==========================
-# HEADER
-# ==========================
 st.markdown('<div class="title">🛡 TwinGuard AI Dashboard</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Evil Twin WiFi Detection System</div>', unsafe_allow_html=True)
 st.write("")
 
 # ==========================
-# DUMMY DATA
+# REAL WIFI SCANNER FUNCTION
 # ==========================
-total_networks=12
-safe_networks=9
-dangerous=3
-risk_score=72
+def scan_wifi():
+    networks = []
+    try:
+        # Windows ke liye netsh command
+        result = subprocess.run(['netsh', 'wlan', 'show', 'networks', 'mode=bssid'],
+                                capture_output=True, text=True, encoding='cp850')
+        output = result.stdout
+
+        ssid = ""
+        bssid_list = []
+        signal_list = []
+        security = ""
+
+        lines = output.split('\n')
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if "SSID" in line and "BSSID" not in line:
+                if ssid and bssid_list: # pehle wala save karo
+                    for j in range(len(bssid_list)):
+                        networks.append({
+                            "SSID": ssid,
+                            "BSSID": bssid_list[j],
+                            "Signal": signal_list[j],
+                            "Security": security
+                        })
+                    bssid_list = []
+                    signal_list = []
+
+                ssid = line.split(":")[1].strip()
+                security = "Unknown"
+
+            if "Authentication" in line:
+                security = line.split(":")[1].strip()
+
+            if "BSSID" in line:
+                bssid = line.split(":")[1].strip()
+                bssid_list.append(bssid)
+
+            if "Signal" in line:
+                signal_str = line.split(":")[1].strip().replace("%","")
+                signal = int((int(signal_str) / 2) - 100) # % to dBm
+                signal_list.append(signal)
+            i += 1
+
+        # last wala
+        if ssid and bssid_list:
+            for j in range(len(bssid_list)):
+                networks.append({
+                    "SSID": ssid,
+                    "BSSID": bssid_list[j],
+                    "Signal": signal_list[j],
+                    "Security": security
+                })
+
+    except Exception as e:
+        st.error(f"Scan Error: {e}")
+        # agar scan fail ho to demo data
+        networks = [
+            {"SSID": "PTCL_5G", "BSSID": "AA:11:22:33:44:01", "Signal": -60, "Security": "WPA2"},
+            {"SSID": "StormFiber", "BSSID": "AA:11:22:33:44:02", "Signal": -55, "Security": "WPA2"},
+            {"SSID": "Airport_Free", "BSSID": "AA:11:22:33:44:03", "Signal": -70, "Security": "WPA2"},
+            {"SSID": "Airport_Free", "BSSID": "DE:AD:BE:EF:11:22", "Signal": -25, "Security": "Open"} # Fake
+        ]
+    return networks
 
 # ==========================
-# METRIC CARDS
+# EVIL TWIN DETECTION LOGIC
 # ==========================
+def detect_evil_twins(df):
+    threats = []
+    duplicate_ssids = df[df.duplicated("SSID", keep=False)]
+
+    for ssid in duplicate_ssids["SSID"].unique():
+        same_name = df[df["SSID"] == ssid]
+        if len(same_name) > 1:
+            # Agar 1 Open hai ya signal bahut strong hai to fake
+            for _, row in same_name.iterrows():
+                if row["Security"] == "Open" or row["Signal"] > -35:
+                    threats.append({
+                        "SSID": row["SSID"],
+                        "BSSID": row["BSSID"],
+                        "Reason": "Duplicate SSID + Open/Strong Signal"
+                    })
+    return threats
+
+# ==========================
+# MAIN DASHBOARD
+# ==========================
+if st.button("🔄 Scan Networks"):
+    with st.spinner("Scanning WiFi Networks..."):
+        time.sleep(2)
+        wifi_networks = scan_wifi()
+    st.success("Scan Complete!")
+else:
+    wifi_networks = scan_wifi()
+
+df = pd.DataFrame(wifi_networks)
+total_networks = len(df)
+duplicate = df[df.duplicated("SSID", keep=False)]
+dangerous = len(detect_evil_twins(df))
+safe_networks = total_networks - dangerous
+risk_score = int((dangerous / total_networks * 100) if total_networks > 0 else 0)
+
+# METRICS
 c1,c2,c3,c4=st.columns(4)
-with c1:
-    st.markdown(f"""<div class="metric-card"><div class="metric-number">{total_networks}</div><div class="metric-title">Networks</div></div>""",unsafe_allow_html=True)
-with c2:
-    st.markdown(f"""<div class="metric-card"><div class="metric-number">{safe_networks}</div><div class="metric-title">Safe</div></div>""",unsafe_allow_html=True)
-with c3:
-    st.markdown(f"""<div class="metric-card"><div class="metric-number">{dangerous}</div><div class="metric-title">Threats</div></div>""",unsafe_allow_html=True)
-with c4:
-    st.markdown(f"""<div class="metric-card"><div class="metric-number">{risk_score}%</div><div class="metric-title">Risk</div></div>""",unsafe_allow_html=True)
+with c1: st.markdown(f"""<div class="metric-card"><div class="metric-number">{total_networks}</div><div class="metric-title">Networks</div></div>""",unsafe_allow_html=True)
+with c2: st.markdown(f"""<div class="metric-card"><div class="metric-number">{safe_networks}</div><div class="metric-title">Safe</div></div>""",unsafe_allow_html=True)
+with c3: st.markdown(f"""<div class="metric-card"><div class="metric-number">{dangerous}</div><div class="metric-title">Threats</div></div>""",unsafe_allow_html=True)
+with c4: st.markdown(f"""<div class="metric-card"><div class="metric-number">{risk_score}%</div><div class="metric-title">Risk</div></div>""",unsafe_allow_html=True)
 st.write("")
 
-# ==========================
 # RISK GAUGE
-# ==========================
-fig=go.Figure(go.Indicator(
-    mode="gauge+number",
-    value=risk_score,
-    title={"text":"Overall Risk"},
-    gauge={
-        "axis":{"range":[0,100]},
-        "bar":{"color":"red"},
-        "steps":[
-            {"range":[0,30],"color":"green"},
-            {"range":[30,60],"color":"orange"},
-            {"range":[60,100],"color":"red"},
-        ]
-    }
-))
+fig=go.Figure(go.Indicator(mode="gauge+number", value=risk_score, title={"text":"Overall Risk"},
+    gauge={"axis":{"range":[0,100]}, "bar":{"color":"red"},
+    "steps":[{"range":[0,30],"color":"green"},{"range":[30,60],"color":"orange"},{"range":[60,100],"color":"red"}]}))
 st.plotly_chart(fig,use_container_width=True)
 
-# ==========================
-# LIVE WIFI SCANNER
-# ==========================
 st.markdown("## 📶 Available WiFi Networks")
-wifi_networks = [
-    {"SSID": "PTCL_5G", "BSSID": "AA:11:22:33:44:01", "Signal": -60, "Security": "WPA2"},
-    {"SSID": "StormFiber", "BSSID": "AA:11:22:33:44:02", "Signal": -55, "Security": "WPA2"},
-    {"SSID": "Airport_Free", "BSSID": "AA:11:22:33:44:03", "Signal": -70, "Security": "WPA2"},
-    {"SSID": "Airport_Free", "BSSID": "DE:AD:BE:EF:11:22", "Signal": -25, "Security": "Open"}
-]
-df = pd.DataFrame(wifi_networks)
 st.dataframe(df, use_container_width=True, hide_index=True)
 st.divider()
 
-st.markdown("## 🔗 Connect To Network")
-selected = st.selectbox("Select WiFi", df["SSID"])
-selected_network = df[df["SSID"] == selected]
+# ==========================
+# THREAT DETECTION
+# ==========================
+st.markdown("## 🚨 Evil Twin Detection")
+threats = detect_evil_twins(df)
 
-if st.button("Connect"):
-    same_ssid = df[df["SSID"] == selected]
-    if len(same_ssid) > 1:
-        fake_found = False
-        for i in range(len(same_ssid)):
-            row = same_ssid.iloc[i]
-            if row["Security"] == "Open" or row["Signal"] > -35:
-                fake_found = True
-                st.error("🚨 EVIL TWIN DETECTED!")
-                st.warning(f"SSID : {row['SSID']}\n\nBSSID : {row['BSSID']}\n\nReason:\n✔ Duplicate SSID\n✔ Different BSSID\n✔ Open Security / Strong Signal\n\nRecommendation:\n❌ Don't Connect")
-                break
-        if fake_found == False:
-            st.success("✅ Connected Successfully")
-    else:
-        st.success("✅ Safe Network Connected")
-st.divider()
-
-# ==========================
-# SECURITY ANALYTICS
-# ==========================
-st.markdown("## 📊 Security Analytics")
-col1, col2 = st.columns(2)
-with col1:
-    chart_data = pd.DataFrame({"Status": ["Safe","Threat"], "Count": [safe_networks,dangerous]})
-    fig = px.pie(chart_data, values="Count", names="Status", hole=0.60, title="Network Status")
-    fig.update_layout(template="plotly_dark", height=420)
-    st.plotly_chart(fig, use_container_width=True)
-with col2:
-    signal_chart = px.bar(df, x="SSID", y="Signal", color="Security", title="WiFi Signal Strength")
-    signal_chart.update_layout(template="plotly_dark", height=420)
-    st.plotly_chart(signal_chart, use_container_width=True)
-st.divider()
-
-# ==========================
-# RECENT ACTIVITY
-# ==========================
-st.markdown("## 📝 Recent Activity")
-activity = [
-    {"Time":"10:20 AM","Event":"Scan Started"},
-    {"Time":"10:21 AM","Event":"4 Networks Found"},
-    {"Time":"10:22 AM","Event":"Duplicate SSID Detected"},
-    {"Time":"10:23 AM","Event":"Threat Level High"},
-    {"Time":"10:24 AM","Event":"User Clicked Connect"}
-]
-for item in activity:
-    st.info(f"🕒 {item['Time']} ➜ {item['Event']}")
-st.divider()
-
-# ==========================
-# SECURITY STATUS
-# ==========================
-st.markdown("## 🛡 Security Status")
-if dangerous > 0:
-    st.error(f"🚨 {dangerous} Suspicious Networks Found\n\n• Duplicate SSID Detected\n\n• Possible Evil Twin Attack\n• Verify MAC Address Before Connecting")
+if len(threats) > 0:
+    for t in threats:
+        st.error(f"🚨 EVIL TWIN DETECTED!")
+        st.warning(f"SSID: {t['SSID']}\nBSSID: {t['BSSID']}\nReason: {t['Reason']}\n❌ Don't Connect")
 else:
-    st.success("✅ Network Environment Looks Safe\nNo Evil Twin Attack Detected.")
+    st.success("✅ No Evil Twin Detected. Network is Safe")
+
 st.divider()
 
 # ==========================
-# COMPARISON
+# COMPARISON TABLE
 # ==========================
 st.markdown("## 🛡 Real vs Fake WiFi Comparison")
-duplicate = df[df.duplicated("SSID", keep=False)]
 if len(duplicate) > 0:
     compare = duplicate.copy()
-    compare["Type"] = ""
-    seen = {}
-    for i in compare.index:
-        ssid = compare.loc[i, "SSID"]
-        if ssid not in seen:
-            compare.loc[i, "Type"] = "✅ Real"
-            seen[ssid] = True
-        else:
-            compare.loc[i, "Type"] = "❌ Fake"
+    compare["Type"] = "✅ Real"
+    # sab se strong signal wala real, baqi fake
+    for ssid in compare["SSID"].unique():
+        same = compare[compare["SSID"]==ssid].sort_values("Signal", ascending=False)
+        if len(same) > 1:
+            compare.loc[same.index[1:], "Type"] = "❌ Fake"
     st.dataframe(compare[["Type","SSID","BSSID","Signal","Security"]], use_container_width=True, hide_index=True)
 else:
-    st.success("No Evil Twin Network Found")
+    st.success("No Duplicate SSID Found")
+
 st.divider()
 
 # ==========================
-# RECOMMENDED NETWORK
-# ==========================
-st.markdown("## ⭐ Recommended Network")
-safe_df = df[df["Security"]!= "Open"]
-if len(safe_df):
-    best = safe_df.sort_values(by="Signal", ascending=False).iloc[0]
-    st.success(f"SSID : {best['SSID']}\n\nBSSID : {best['BSSID']}\n\nSecurity : {best['Security']}\n\nRecommendation :\n✅ Connect to this network.")
-else:
-    st.error("No Verified Network Available")
-st.divider()
-
-# ==========================
-# SESSION SUMMARY
-# ==========================
-st.markdown("## 📊 Session Summary")
-st.write(f"**Total Networks :** {total_networks}")
-st.write(f"**Safe Networks :** {safe_networks}")
-st.write(f"**Threat Networks :** {dangerous}")
-st.write(f"**Overall Risk :** {risk_score}%")
-if dangerous > 0:
-    st.error("High Risk Environment Detected.")
-else:
-    st.success("Network Environment Safe.")
-st.divider()
-
-# ==========================
-# PDF REPORT - FIXED
+# PDF REPORT
 # ==========================
 st.markdown("## 📄 Generate Report")
 def create_pdf():
@@ -250,24 +209,10 @@ def create_pdf():
     pdf.cell(0, 10, f"Threats : {dangerous}", ln=True)
     pdf.cell(0, 10, f"Risk Score : {risk_score}%", ln=True)
     pdf.ln(10)
-    pdf.multi_cell(0, 10, "Recommendation:\nAvoid connecting to duplicate SSID networks. Verify the MAC address before connecting.")
-    return bytes(pdf.output(dest="S")) # <-- ye line andar aa gayi
+    pdf.multi_cell(0, 10, "Recommendation:\nAvoid connecting to duplicate SSID networks with Open security. Always verify MAC address.")
+    return bytes(pdf.output(dest="S"))
 
 pdf_bytes = create_pdf()
-st.download_button( # <-- ye comment se bahar aa gaya
-    "⬇ Download PDF Report",
-    pdf_bytes,
-    file_name="TwinGuard_Report.pdf",
-    mime="application/pdf"
-)
-st.divider()
+st.download_button("⬇ Download PDF Report", pdf_bytes, file_name="TwinGuard_Report.pdf", mime="application/pdf")
 
-# ==========================
-# REFRESH BUTTON
-# ==========================
-if st.button("🔄 Refresh Dashboard"):
-    st.success("Dashboard Refreshed Successfully")
-    st.rerun()
-st.divider()
-
-st.markdown("""<center><h4 style="color:#00E5FF;">🛡 TwinGuard AI</h4><p style="color:gray;">Developed By Group Zeta</p></center>""", unsafe_allow_html=True)
+st.caption(f"TwinGuard AI © 2026 | Last Scan : {datetime.now().strftime('%d-%m-%Y %I:%M:%S %p')}")
