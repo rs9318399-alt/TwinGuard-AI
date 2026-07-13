@@ -495,6 +495,8 @@ def build_comparison(ssid, scanned_networks, trusted):
 # =====================================================
 
 def scan_wifi():
+    global scan_logs
+    scan_logs.clear()
     """
     Main backend function.
     Loads networks, simulates Evil Twin,
@@ -547,3 +549,4 @@ if __name__ == "__main__":
     print(data["blocked"])
 
     print("\n========== Test Completed ==========")
+    

@@ -5,6 +5,8 @@ from datetime import datetime
 from fpdf import FPDF
 import time
 
+from logic.scanner import scan_wifi
+
 st.set_page_config(page_title="TwinGuard AI", page_icon="🛡️", layout="wide")
 
 # SESSION STATE
@@ -29,153 +31,377 @@ page = st.sidebar.radio("Navigation", ["Dashboard","Threat History","Blocked Lis
 st.sidebar.title("TwinGuard AI")
 st.sidebar.success("System Online")
 
-st.markdown('<div class="title">🛡 TwinGuard AI Dashboard</div>', unsafe_allow_html=True)
+st.markdown("""
+<div class="title">
+🛡 TwinGuard-AI
+</div>
 
+<h4 style='color:#CBD5E1; margin-top:-10px;'>
+Evil Twin Wi-Fi Detection & Prevention System
+</h4>
+""", unsafe_allow_html=True)
 # ==========================
-# SCANNER - CLOUD KE LIYE DEMO
+# Dashboard Information Bar
 # ==========================
-def scan_wifi():
-    networks = []
-    # Streamlit Cloud pe real wifi scan nahi hota isliye demo data
-    networks.append({"SSID": "PTCL_5G", "BSSID": "AA:11:22:33:44:01", "Signal": -55, "Security": "WPA2-Personal", "Type": "Real"})
-    networks.append({"SSID": "PTCL_5G", "BSSID": "DE:AD:BE:EF:11:22", "Signal": -28, "Security": "Open authentication", "Type": "Fake"}) # YE EVIL TWIN HAI
-    networks.append({"SSID": "StormFiber", "BSSID": "AA:11:22:33:44:02", "Signal": -60, "Security": "WPA2-Personal", "Type": "Real"})
-    networks.append({"SSID": "Jazz_WiFi", "BSSID": "FF:EE:DD:CC:BB:01", "Signal": -70, "Security": "WPA2-Personal", "Type": "Real"})
-    return networks
 
-# ==========================
-# DETECTION LOGIC
-# ==========================
-def check_network(row):
-    reason = ""
-    status = "Secure"
-    
-    # CHECK KARO YE BLOCKED HAI KYA
-    if row["BSSID"] in st.session_state.blocked_list:
-        status = "⛔ BLOCKED - FAKE"
-        reason = "This BSSID is in your Blocked List. You marked it as Evil Twin."
-    elif row["Type"] == "Fake":
-        status = "🚨 EVIL TWIN - FAKE"
-        if "Open" in row["Security"]:
-            reason = "Duplicate SSID with Open Security. Real routers are always encrypted."
-        elif row["Signal"] > -35:
-            reason = "Signal too strong. Hacker router is placed very close to you."
-    elif row["Type"] == "Suspicious":
-        status = "⚠ SUSPICIOUS"
-        reason = "Duplicate SSID found but both are encrypted. Could be Mesh/Extender."
-    else:
-        status = "✅ SECURE - REAL"
-        reason = "WPA2/WPA3 encryption and normal signal. This is the real router."
-        
-    return status, reason
+today = datetime.now()
+
+c1, c2, c3 = st.columns(3)
+
+with c1:
+    st.info(f"📅 Date: {today.strftime('%d %B %Y')}")
+
+with c2:
+    st.info(f"🕒 Time: {today.strftime('%I:%M:%S %p')}")
+
+with c3:
+    st.success("🟢 Backend Status: Online")
+
+
+
 
 # ==========================
 # PDF GENERATOR
 # ==========================
 def create_pdf(logs_df):
+
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial","B",18)
-    pdf.cell(0, 10, "TwinGuard AI - Threat Report", ln=True, align="C")
-    pdf.ln(5)
-    pdf.set_font("Arial","",10)
-    pdf.cell(0, 10, f"Report Generated: {datetime.now().strftime('%d-%m-%Y %I:%M:%S %p')}", ln=True)
-    pdf.ln(5)
-    pdf.set_font("Arial","B",12)
-    pdf.cell(40, 10, "Time", 1); pdf.cell(40, 10, "SSID", 1); pdf.cell(50, 10, "BSSID", 1); pdf.cell(40, 10, "Status", 1); pdf.ln()
-    pdf.set_font("Arial","",9)
-    for _, row in logs_df.iterrows():
-        pdf.cell(40, 10, str(row['Time']), 1); pdf.cell(40, 10, str(row['SSID']), 1); pdf.cell(50, 10, str(row['BSSID']), 1); pdf.cell(40, 10, str(row['Status']), 1); pdf.ln()
-    return bytes(pdf.output(dest="S"))
 
+    # ---------- Title ----------
+    pdf.set_font("Arial", "B", 18)
+    pdf.cell(0, 12, "TwinGuard-AI", ln=True, align="C")
+
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Wi-Fi Threat Detection Report", ln=True, align="C")
+
+    pdf.ln(5)
+
+    # ---------- Report Information ----------
+    pdf.set_font("Arial", "", 11)
+
+    pdf.cell(
+        0,
+        8,
+        f"Generated On: {datetime.now().strftime('%d-%b-%Y %I:%M:%S %p')}",
+        ln=True,
+    )
+
+    pdf.cell(
+        0,
+        8,
+        f"Total Detection Records: {len(logs_df)}",
+        ln=True,
+    )
+
+    pdf.ln(5)
+
+    # ---------- Table Header ----------
+    pdf.set_font("Arial", "B", 10)
+
+    pdf.cell(25, 8, "Time", 1)
+    pdf.cell(45, 8, "SSID", 1)
+    pdf.cell(50, 8, "BSSID", 1)
+    pdf.cell(35, 8, "Status", 1)
+    pdf.cell(25, 8, "Risk", 1)
+
+    pdf.ln()
+
+    # ---------- Table ----------
+    pdf.set_font("Arial", "", 9)
+
+    for _, row in logs_df.iterrows():
+
+        pdf.cell(25, 8, str(row["time"]), 1)
+        pdf.cell(45, 8, str(row["ssid"])[:20], 1)
+        pdf.cell(50, 8, str(row["bssid"]), 1)
+        pdf.cell(35, 8, str(row["status"])[:15], 1)
+        pdf.cell(25, 8, str(row["risk"]), 1)
+
+        pdf.ln()
+
+    # ---------- Footer ----------
+    pdf.ln(8)
+
+    pdf.set_font("Arial", "I", 9)
+
+    pdf.multi_cell(
+        0,
+        6,
+        "This report was automatically generated by TwinGuard-AI. "
+        "It summarizes the wireless networks detected during the scan, "
+        "their security status, and associated risk level.",
+    )
+
+    return bytes(pdf.output(dest="S"))
 # ==========================
 # PAGE 1: DASHBOARD
 # ==========================
 if page == "Dashboard":
-    if st.button("🔄 Scan Networks"):
-        with st.spinner("Scanning..."): 
-            time.sleep(2)
-            st.session_state.df = pd.DataFrame(scan_wifi())
-        st.success("Scan Complete!")
+
+    scan = st.button(
+        "🔄 Scan Wi-Fi Networks",
+        use_container_width=True,
+        type="primary"
+    )
+
+    if scan:
+
+        with st.spinner("🔍 Scanning nearby Wi-Fi networks..."):
+
+            progress = st.progress(0)
+
+            for i in range(100):
+                time.sleep(0.015)
+                progress.progress(i + 1)
+
+            progress.empty()
+
+            scan_data = scan_wifi()
+
+            st.session_state.df = pd.DataFrame(scan_data["results"])
+            st.session_state.logs = scan_data["logs"]
+            st.session_state.blocked_list = scan_data["blocked"]
+            st.session_state.summary = scan_data["summary"]
+
+        st.success("✅ Scan Completed Successfully!")
 
     df = st.session_state.df
-    if not df.empty:
-        total_networks = len(df)
-        dangerous = len(df[df["Type"] == "Fake"])
-        safe_networks = total_networks - dangerous
-        risk_score = int((dangerous / total_networks * 100)) if total_networks > 0 else 0
+    
 
-        c1,c2,c3,c4=st.columns(4)
-        with c1: st.metric("Networks", total_networks)
-        with c2: st.metric("Safe", safe_networks)
-        with c3: st.metric("Threats", dangerous)
-        with c4: st.metric("Risk", f"{risk_score}%")
+    if not df.empty:
+
+        summary = st.session_state.summary
+
+        total_networks = summary["total_networks"]
+        safe_networks = summary["safe_networks"]
+        dangerous = summary["threats_found"]
+        risk_score = summary["security_score"]
         
-        st.markdown("## 📶 Click to Analyze & Block")
-        
+        c1, c2, c3, c4 = st.columns(4)
+
+        with c1:
+            st.metric("📶 Networks Found", total_networks)
+
+        with c2:
+            st.metric("✅ Safe Networks", safe_networks)
+
+        with c3:
+            st.metric("🚨 Threats Found", dangerous)
+
+        with c4:
+            st.metric("🛡 Security Score", f"{risk_score}%")
+
+        st.markdown("## 📶 Available Wi-Fi Networks")
+        st.caption("Select a network below to perform a detailed security analysis.")
         for index, row in df.iterrows():
             with st.container():
-                col1, col2, col3, col4, col5 = st.columns([3,3,2,2,2])
-                with col1: st.write(f"**{row['SSID']}**")
-                with col2: st.write(f"{row['BSSID']}")
-                with col3: st.write(f"{row['Signal']} dBm")
-                with col4: st.write(f"{row['Security']}")
-                with col5: 
-                    if st.button(f"Check", key=f"check{index}"):
-                        status, reason = check_network(row)
-                        st.session_state.selected = {**row, "Status": status, "Reason": reason}
-                        log_entry = {"Time": datetime.now().strftime('%d-%m %I:%M:%S %p'), "SSID": row['SSID'], "BSSID": row['BSSID'], "Status": "BLOCKED" if "BLOCKED" in status else "FAKE" if "FAKE" in status else "REAL"}
-                        st.session_state.logs.append(log_entry)
-                        st.rerun()
-        
-        st.divider()
-        
-        if "selected" in st.session_state:
-            row = st.session_state.selected
-            st.markdown("## 🔍 Analysis Result")
-            st.write(f"**SSID:** {row['SSID']} | **BSSID:** {row['BSSID']}")
-            
-            if "FAKE" in row['Status'] or "BLOCKED" in row['Status']:
-                st.error(row['Status'])
-                st.warning(f"Reason: {row['Reason']}")
-                if row['BSSID'] not in st.session_state.blocked_list:
-                    if st.button("⛔ Block This Network"):
-                        st.session_state.blocked_list.append(row['BSSID'])
-                        st.success(f"{row['SSID']} added to Blocked List!")
-                        st.rerun()
-            else:
-                st.success(row['Status'])
-                st.info(f"Reason: {row['Reason']}")
 
+                col1, col2, col3, col4, col5, col6 = st.columns([2, 3, 2, 2, 3, 1])
+                with col1:
+                    st.write(f"**{row['ssid']}**")
+
+                with col2:
+                    st.write(row["bssid"])
+
+                with col3:
+                    st.write(f"{row['signal']} dBm")
+
+                with col4:
+                    st.write(row["security"])
+
+                with col5:
+                    st.write("")
+
+                with col6:
+                    if st.button("Check", key=f"check{index}"):
+
+                        st.session_state.selected = row.to_dict()
+
+                        st.rerun()
+        if "selected" in st.session_state:
+
+           row = st.session_state.selected
+
+           st.divider()
+
+           st.markdown("## 🔍 Analysis Report")
+
+           left, right = st.columns(2)
+
+           with left:
+
+               st.markdown("### 📡 Network Details")
+
+               st.write(f"**SSID:** {row['ssid']}")
+               st.write(f"**BSSID:** {row['bssid']}")
+               st.write(f"**Category:** {row['category']}")
+
+           with right:
+
+               st.markdown("### 🛡 Security Assessment")
+
+               st.metric("Status", row["status"])
+               st.metric("Risk Level", row["risk"])
+               st.progress(row["confidence"] / 100)
+               st.caption(f"Confidence Score: {row['confidence']}%")
+
+           if row["status"] == "Verified":
+
+               st.success("✅ This Wi-Fi network is verified and safe to connect.")
+
+           else:
+
+               st.error("🚨 Potential Evil Twin detected. Avoid connecting to this network.")
+
+           st.warning(f"### ⚠ Detection Reason\n{row['reason']}")
+
+           st.info(f"### 💡 Recommendation\n{row['recommendation']}")
+
+           if row["status"] == "Potential Evil Twin":
+
+              if st.button("⛔ Block This Network"):
+
+                 st.session_state.blocked_list.append(row)
+
+                 st.success("Network added to Blocked List.")
+
+                 st.rerun()
+    
 # ==========================
 # PAGE 2: THREAT HISTORY
 # ==========================
 elif page == "Threat History":
-    st.markdown("## 📜 Scan Logs")
+
+    st.markdown("## 📜 Threat History")
+
     if len(st.session_state.logs) > 0:
+
         logs_df = pd.DataFrame(st.session_state.logs)
-        st.dataframe(logs_df, use_container_width=True, hide_index=True)
+
+        st.metric("Detection Records", len(logs_df))
+
+        st.dataframe(
+            logs_df,
+            use_container_width=True,
+            hide_index=True
+        )
+
         pdf_bytes = create_pdf(logs_df)
-        st.download_button("⬇ Download PDF Report", pdf_bytes, file_name=f"TwinGuard_Report.pdf", mime="application/pdf")
-    else: st.info("No logs yet.")
+
+        st.download_button(
+            "⬇ Download PDF Report",
+            pdf_bytes,
+            file_name="TwinGuard_Report.pdf",
+            mime="application/pdf"
+        )
+
+    else:
+
+        st.info("No scan history available.")
+
 
 # ==========================
 # PAGE 3: BLOCKED LIST
 # ==========================
 elif page == "Blocked List":
+
     st.markdown("## ⛔ Blocked Networks")
+
     if len(st.session_state.blocked_list) > 0:
-        for bssid in st.session_state.blocked_list:
-            col1, col2 = st.columns([4,1])
-            with col1: st.error(f"Blocked BSSID: {bssid}")
-            with col2:
-                if st.button("Unblock", key=bssid):
-                    st.session_state.blocked_list.remove(bssid)
-                    st.rerun()
-    else: st.success("No networks blocked yet.")
 
+        for index, network in enumerate(st.session_state.blocked_list):
+
+            with st.container():
+
+                st.error(f"🚨 {network['ssid']}")
+
+                st.write(f"**BSSID:** {network['bssid']}")
+                st.write(f"**Risk:** {network['risk']}")
+
+                if "status" in network:
+                    st.write(f"**Status:** {network['status']}")
+
+                if "confidence" in network:
+                    st.write(f"**Confidence:** {network['confidence']}%")
+
+                if "reason" in network:
+                    st.warning(f"**Reason:** {network['reason']}")
+
+                col1, col2 = st.columns([5, 1])
+
+                with col2:
+
+                    if st.button("🔓 Unblock", key=f"unblock_{index}"):
+
+                        st.session_state.blocked_list.remove(network)
+
+                        st.success("Network Unblocked Successfully!")
+
+                        st.rerun()
+
+                st.divider()
+
+    
+
+# ==========================
+# PAGE 4: SETTINGS
+# ==========================
 elif page == "Settings":
-    st.markdown("## ⚙️ Settings")
-    st.info("This is Demo Version. Real blocking requires Windows Admin App.")
 
-st.caption(f"TwinGuard AI © 2026")
+    st.markdown("## ⚙️ System Settings")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        st.success("🟢 Detection Engine : Active")
+        st.success("🟢 Scanner Module : Connected")
+        st.success("🟢 Backend Status : Online")
+
+    with col2:
+
+        st.info("📂 Network Database : Loaded")
+        st.info("🛡 Version : TwinGuard-AI v1.0")
+        st.info("👩‍💻 Mode : Simulation Prototype")
+
+    st.divider()
+
+    st.subheader("📌 System Information")
+
+    st.write("**Project:** TwinGuard-AI")
+    st.write("**Purpose:** Evil Twin Wi-Fi Detection & Prevention")
+    st.write("**Platform:** Python + Streamlit")
+    st.write("**Course:** Security Architecture")
+    st.write("**University:** Hamdard University")
+    st.write("**Year:** 2026")
+
+    st.divider()
+
+    st.subheader("👩‍💻 Development Team")
+
+    st.markdown("""
+- **Nabiha Arshad**
+- **Rabia**
+- **Kanza**
+""")
+
+    st.divider()
+
+    if st.button("🗑 Clear Detection History"):
+
+        st.session_state.logs = []
+
+        st.success("Detection history cleared successfully.")
+
+
+# ==========================
+# FOOTER
+# ==========================
+
+st.markdown("---")
+
+st.caption(
+    "🛡 TwinGuard-AI v1.0 | Developed by Group Zeta (Nabiha Arshad • Rabia Shah • Kanza Sohail) | "
+    "Security Architecture Project | Hamdard University | © 2026"
+)
